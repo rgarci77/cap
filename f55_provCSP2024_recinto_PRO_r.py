@@ -419,7 +419,10 @@ for row in cur:
 ##
 ##                        arcpy.RemoveJoin_management("lyshprec")
 
-                        arcpy.AddIndex_management("lyshprec", "ID_UNICO", "lyshprec_ID_UNICO", "UNIQUE","ASCENDING")
+                        if "lyshprec_ID_UNICO" not in [idx.name for idx in arcpy.ListIndexes("lyshprec")]:
+                            arcpy.AddIndex_management("lyshprec", "ID_UNICO", "lyshprec_ID_UNICO", "UNIQUE","ASCENDING")
+
+                        #arcpy.AddIndex_management("lyshprec", "ID_UNICO", "lyshprec_ID_UNICO", "UNIQUE","ASCENDING")
                         arcpy.SelectLayerByAttribute_management("lyshprec", "CLEAR_SELECTION")
 
                         arcpy.JoinField_management("lyshprec", "ID_UNICO", "sta1", "Value", ["MEAN", "COUNT"])
@@ -607,7 +610,7 @@ for row in cur:
 ##
 ##                            arcpy.RemoveJoin_management("lyshprec")
 
-                            arcpy.AddIndex_management("lyshprec", "ID_UNICO", "lyshprec_ID_UNICO", "UNIQUE","ASCENDING")
+                            #arcpy.AddIndex_management("lyshprec", "ID_UNICO", "lyshprec_ID_UNICO", "UNIQUE","ASCENDING")
 
                             arcpy.SelectLayerByAttribute_management("lyshprec", "CLEAR_SELECTION")
                             arcpy.JoinField_management("lyshprec", "ID_UNICO", "sta1", "Value", ["MEAN", "COUNT"])
