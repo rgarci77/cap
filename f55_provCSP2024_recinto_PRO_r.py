@@ -43,7 +43,8 @@ arcpy.AddMessage( "Inicio la provincia: " + codProv + " el " + time.ctime())
 fictime.write('Inicio la provincia ' + codProv + ' el ' + time.ctime() + '\n')
 
 # configuro directorio de trabajo
-arcpy.env.workspace = dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb"
+gdb_trabajo = os.path.join(dirPrin, f"prov{codProv}", f"prov{codProv}.gdb")
+arcpy.env.workspace = gdb_trabajo
 
 #*********************************
 # configuro entornoS
