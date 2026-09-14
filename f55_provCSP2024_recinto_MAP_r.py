@@ -25,6 +25,8 @@ arcpy.env.overwriteOutput = True
 # CONSTRUCCIÓN DE RUTAS Y CONTROL DE EXISTENCIA
 carpeta_prov = os.path.join(dirPrin, "prov" + codProv)
 gdb_trabajo  = os.path.join(carpeta_prov, "prov" + codProv + ".gdb")
+carpeta_proye = os.path.join(gdb_trabajo, "PROYE")
+ruta_temp = os.path.join(gdb_trabajo, "temp")
 
 
 # Cojo la licencia de Spatial
@@ -35,14 +37,22 @@ else:
     arcpy.AddError(time.ctime() + " Licencia 'Spatial Analyst' no disponible. Abortando.")
     raise SystemExit
 
+if not arcpy.Exists(gdb_trabajo):
+    arcpy.AddError(time.ctime() + " ERROR CRÍTICO: No existe la Geodatabase de trabajo: " + str(gdb_trabajo))
+    raise SystemExit
+
+existe_GFESPDE = arcpy.Exists("GFESPDE_" + codProv)
+existe_GFESPES = arcpy.Exists("GFESPES_" + codProv)
+existe_GFESP   = arcpy.Exists("GFESP_" + codProv)
+
 # 1. CONTROL DE ERRORES: Comprobamos si la carpeta de la provincia existe
 if not os.path.exists(carpeta_prov):
-    arcpy.AddError(time.ctime() + " ERROR CRÍTICO: No existe la carpeta de la provincia seleccionada: {carpeta_prov}")
+    arcpy.AddError(time.ctime() + " ERROR CRÍTICO: No existe la carpeta de la provincia seleccionada: " + carpeta_prov")
     raise SystemExit
 
 # 2. CONTROL DE ERRORES: Comprobamos si la File Geodatabase (.gdb) existe
 if not arcpy.Exists(gdb_trabajo):
-    arcpy.AddError(time.ctime() + " ERROR CRÍTICO: No existe la Geodatabase de trabajo: {gdb_trabajo}")
+    arcpy.AddError(time.ctime() + " ERROR CRÍTICO: No existe la Geodatabase de trabajo: "+ gdb_trabajo")
     raise SystemExit
 
 # Si pasa los controles anteriores, configuramos el entorno de forma segura
@@ -56,12 +66,12 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
     fictime.write(u'Inicio la provincia ' + codProv + ' el ' + time.ctime() + '\n')
 
     # configuro directorio de trabajo
-    arcpy.env.workspace = dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb"
+    arcpy.env.workspace = gdb_trabajo
 
     #*********************************
     # configuro entornoS
 
-    prov_ras = dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\GLIMITE_" + codProv
+    prov_ras = os.path.join(carpeta_proye, "GLIMITE_" + codProv)
     dsc = arcpy.Describe(prov_ras)
     coord_sys = dsc.spatialReference
 
@@ -76,12 +86,12 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
         #arcpy.CopyFeatures_management("shp_layer", dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\PROYE\\precfe_" + codProv)#20211114
         #vshp_recp = dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\PROYE\\precfe_" + codProv
         
-        vshp_recp = arcpy.FeatureClassToFeatureClass_conversion(shp_rec,dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\PROYE","precfe_" + codProv ) #por si distinta proyeccion
+        vshp_recp = arcpy.FeatureClassToFeatureClass_conversion(shp_rec,os.path.join(carpeta_proye, "precfe_" + codProv)) #por si distinta proyeccion
         arcpy.JoinField_management(vshp_recp, "DN_OID", bd_rec, "DN_OID")
         
     else:
         arcpy.AddMessage("muni_ini distinto de 1")
-        vshp_recp = dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\PROYE\\precfe_" + codProv
+        vshp_recp = os.path.join(carpeta_proye, "precfe_" + codProv)
         arcpy.RemoveIndex_management(vshp_recp, ["iID_UNICO"])
         
     #extension con un margen de 100m
@@ -113,19 +123,19 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
     vgfveges = Raster("gfvegesp_" + str(codProv))
     vgfinc = Raster("gfinc_" + str(codProv))
 
-    if arcpy.Exists("GFESPDE_" + codProv): #20211111
+    if existe_GFESPDE: #20211111
         arcpy.AddMessage("Existe Fdehesa")
         fictime.write(u'Existe Fdehesa ' + '\n')
         gtemp_deh = Con(IsNull("GDEH_" + codProv),0,1) #20211125
         gtemp_fespde = Con(IsNull("GFESPDE_" + codProv),0,1)
 
-    if arcpy.Exists("GFESPES_" + codProv): #20211111
+    if existe_GFESPES: #20211111
         arcpy.AddMessage("Existe Fespecie CCAA")
         fictime.write(u'Existe Fespecie CCAA ' + '\n')
         gtemp_esp = Con(IsNull("GESP_" + codProv),0,1) #20211125
         gtemp_fespes = Con(IsNull("GFESPES_" + codProv),0,1)
 
-    if arcpy.Exists("GFESP_" + codProv): #20211111
+    if existe_GFESP: #20211111
         arcpy.AddMessage("Existe Fespecie total")
         fictime.write(u'Existe Fespecie total ' + '\n')
         gtemp_fesp = Con(IsNull("GFESP_" + codProv),0,1)
@@ -188,7 +198,7 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
     # reparo geometria
     if repgeo == "true":
         arcpy.AddMessage( "Reparo geometria")
-        arcpy.CheckGeometry_management(vshp_recp, dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\ErrGeoSigp_" + str(codProv))
+        arcpy.CheckGeometry_management(vshp_recp, os.path.join(carpeta_proye, "ErrGeoSigp_" + str(codProv)))
 
         arcpy.RepairGeometry_management(vshp_recp)
     else:
@@ -220,15 +230,18 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
             arcpy.AddMessage("***************************************")
             arcpy.AddMessage("Procesando " + str(rec) + " de " + str(nunmun) + " - Municipio: " + str(mun) + " a las " + time.ctime())
             arcpy.AddMessage("***************************************")
-            fictime.write(u'Procesando ' + str(rec) + ' de ' + str(nunmun) + ' - Municipio: ' + str(mun) + ' a las ' + time.ctime() + '\n')
+            fictime.write(u'Procesando ' + str(rec) + ' de ' + str(nunmun) + ' - Municipio: ' + str(mun) + ' a las ' + time.ctime() + u'\n')
 
             # genero Fc con el municipio a procesar
-            arcpy.SelectLayerByAttribute_management("lyshprec", "NEW_SELECTION", "\"MUNICIPIO\" =" +  str(mun) )        
-            if int(arcpy.GetCount_management("lyshprec").getOutput(0)) > 0:
-                arcpy.AddMessage ("N�mero de recintos: " + str(arcpy.GetCount_management("lyshprec").getOutput(0)))
-                fictime.write(u'N�mero de recintos: ' + str(arcpy.GetCount_management("lyshprec").getOutput(0) + '\n'))
+            arcpy.SelectLayerByAttribute_management("lyshprec", "NEW_SELECTION", "\"MUNICIPIO\" =" +  str(mun) )  
+
+            nrec_municipio = int(arcpy.GetCount_management("lyshprec").getOutput(0))
+
+            if nrec_municipio > 0:
+                arcpy.AddMessage("Número de recintos: " + str(nrec_municipio))
+                fictime.write(u'Número de recintos: ' + unicode(nrec_municipio) + u'\n')
                 
-                vshp_mun = arcpy.FeatureClassToFeatureClass_conversion("lyshprec", dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\PROYE", "sigp_muni")
+                vshp_mun = arcpy.FeatureClassToFeatureClass_conversion("lyshprec", carpeta_proye, "sigp_muni")
                 arcpy.MakeFeatureLayer_management(vshp_mun, "lyshprec2")
                 
                 # detecto solapes
@@ -241,14 +254,14 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                     arcpy.AddMessage ("Inicio vuelta: " + str(RecVue))
                     
                     arcpy.SelectLayerByAttribute_management("lyshprec2", "NEW_SELECTION", "\"SOLAPES2\" = 0") 
-                    arcpy.PolygonNeighbors_analysis("lyshprec2", dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\temp", "ID_UNICO", "AREA_OVERLAP","","0.001")
+                    arcpy.PolygonNeighbors_analysis("lyshprec2", ruta_temp, "ID_UNICO", "AREA_OVERLAP","","0.001")
 
                     arcpy.MakeTableView_management("temp", "lytemp")
                     arcpy.SelectLayerByAttribute_management("lytemp", "NEW_SELECTION", "\"AREA\" > 0") 
                     nreg1 = int(arcpy.GetCount_management("lytemp").getOutput(0)) 
                     #arcpy.AddMessage("solapan :" + str(nreg1))
                     if nreg1 > 0:
-                        arcpy.CopyRows_management("lytemp", dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\SolapesSigp_" + str(codProv))
+                        arcpy.CopyRows_management("lytemp", os.path.join(carpeta_proye, "SolapesSigp_" + str(codProv)))
 
                         #saco numero solapes
                         arcpy.Frequency_analysis("SolapesSigp_" + str(codProv), "SolapesSigp_frq_" + str(codProv), "src_ID_UNICO")
@@ -284,7 +297,7 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                             arcpy.RemoveJoin_management ("lyshprec2", "SolapesSigp_frq2_" + str(codProv))
 
                         else:                                                                                                      #nuevo 20220523
-                                arcpy.AddMessage(int(arcpy.GetCount_management("SolapesSigp_" + str(codProv)).getOutput(0)))        #nuevo 20220523
+
                                 cur2 = arcpy.SearchCursor("SolapesSigp_" + str(codProv), sort_fields="FREQUENCY A")                 #nuevo 20220523        
                                 for row2 in cur2:                                                                                      #nuevo 20220523
                                     recid = row2.getValue("src_ID_UNICO")                                                                #nuevo 20220523
@@ -370,17 +383,17 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                             arcpy.AddIndex_management("sta5", "Value", "sta5_Value", "UNIQUE","ASCENDING")
                             STAT_TXT6 = ZonalStatisticsAsTable("gsigp_muni", "Value",vgfinc, "sta6", "NODATA", "MEAN") 
                             arcpy.AddIndex_management("sta6", "Value", "sta6_Value", "UNIQUE","ASCENDING")
-                            if arcpy.Exists("GFESPDE_" + codProv): #20211111
+                            if existe_GFESPDE: #20211111
                                 STAT_TXT11 = ZonalStatisticsAsTable("gsigp_muni", "Value",gtemp_deh, "sta11", "DATA", "MEAN") #20211125 
                                 arcpy.AddIndex_management("sta11", "Value", "sta11_Value", "UNIQUE","ASCENDING") #20211125
                                 STAT_TXT7 = ZonalStatisticsAsTable("gsigp_muni", "Value",gtemp_fespde, "sta7", "DATA", "MEAN") #20211111 
                                 arcpy.AddIndex_management("sta7", "Value", "sta7_Value", "UNIQUE","ASCENDING") #20211111
-                            if arcpy.Exists("GFESPES_" + codProv): #20211111
+                            if existe_GFESPES: #20211111
                                 STAT_TXT12 = ZonalStatisticsAsTable("gsigp_muni", "Value",gtemp_esp, "sta12", "DATA", "MEAN") #20211125 
                                 arcpy.AddIndex_management("sta12", "Value", "sta12_Value", "UNIQUE","ASCENDING") #20211125
                                 STAT_TXT8 = ZonalStatisticsAsTable("gsigp_muni", "Value",gtemp_fespes, "sta8", "DATA", "MEAN") #20211111 
                                 arcpy.AddIndex_management("sta8", "Value", "sta8_Value", "UNIQUE","ASCENDING") #20211111
-                            if arcpy.Exists("GFESP_" + codProv): #20211111
+                            if existe_GFESP: #20211111
                                 STAT_TXT9 = ZonalStatisticsAsTable("gsigp_muni", "Value",gtemp_fesp, "sta9", "DATA", "MEAN") #20211111 
                                 arcpy.AddIndex_management("sta9", "Value", "sta9_Value", "UNIQUE","ASCENDING") #20211111
                                     
@@ -390,7 +403,6 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                             arcpy.SelectLayerByAttribute_management("lyshprec", "CLEAR_SELECTION")
 
                             arcpy.AddJoin_management("lyshprec","ID_UNICO","sta1","Value","KEEP_COMMON")
-                            arcpy.AddMessage("seleccion para calcular: " + arcpy.GetCount_management("lyshprec").getOutput(0))
                             arcpy.CalculateField_management("lyshprec","CSP","!sta1.MEAN! / 10000", "PYTHON")
 
                             arcpy.AddJoin_management("lyshprec","ID_UNICO","sta2","Value","KEEP_COMMON")
@@ -414,19 +426,19 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                             arcpy.AddJoin_management("lyshprec","ID_UNICO","sta13","Value","KEEP_COMMON") #20221020
                             arcpy.CalculateField_management("lyshprec","ALT_NEW","!sta13.MEAN!", "PYTHON") #20221020
 
-                            if arcpy.Exists("GFESPDE_" + codProv): #20211111
+                            if existe_GFESPDE: #20211111
                                 arcpy.AddJoin_management("lyshprec","ID_UNICO","sta11","Value","KEEP_COMMON") #20211125
                                 arcpy.CalculateField_management("lyshprec","POR_DEH","!sta11.MEAN! * 100", "PYTHON")  #20211125
                                 arcpy.AddJoin_management("lyshprec","ID_UNICO","sta7","Value","KEEP_COMMON") #20211111
                                 arcpy.CalculateField_management("lyshprec","POR_FESPDE","!sta7.MEAN! * 100", "PYTHON")  #20211111
 
-                            if arcpy.Exists("GFESPES_" + codProv): #20211111
+                            if existe_GFESPES: #20211111
                                 arcpy.AddJoin_management("lyshprec","ID_UNICO","sta12","Value","KEEP_COMMON") #20211125
                                 arcpy.CalculateField_management("lyshprec","POR_ESP","!sta12.MEAN! * 100", "PYTHON")  #20211125
                                 arcpy.AddJoin_management("lyshprec","ID_UNICO","sta8","Value","KEEP_COMMON") #20211111
                                 arcpy.CalculateField_management("lyshprec","POR_FESPES","!sta8.MEAN! * 100", "PYTHON")  #20211111
 
-                            if arcpy.Exists("GFESP_" + codProv): #20211111
+                            if existe_GFESP: #20211111
                                 arcpy.AddJoin_management("lyshprec","ID_UNICO","sta9","Value","KEEP_COMMON") #20211111
                                 arcpy.CalculateField_management("lyshprec","POR_FESP","!sta9.MEAN! * 100", "PYTHON")  #20211111
 
@@ -497,12 +509,12 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                         arcpy.SelectLayerByAttribute_management("lyshprec2", "NEW_SELECTION", "Shape_Area <= 50 and \"SOLAPES2\" = 0" )
                                     
                         Nrec2 = arcpy.GetCount_management("lyshprec2").getOutput(0)
+
                         if int(Nrec2) > 0:
-                            arcpy.AddMessage ("N�mero de recintos menores de 50 m2: " + str(arcpy.GetCount_management("lyshprec2").getOutput(0)))
-                            fictime.write(u'N�mero de recintos menores de 50 m2: ' + str(arcpy.GetCount_management("lyshprec2").getOutput(0) + '\n'))
-                                    
-                            vshp_mun2 = arcpy.FeatureClassToFeatureClass_conversion("lyshprec2", dirPrin + "\\prov" + codProv + "\\prov" + codProv + ".gdb\\PROYE", "sigp_muni2")
-                                    
+                            arcpy.AddMessage ("Número de recintos menores de 50 m2: " + str(Nrec2))
+                            fictime.write(u'Número de recintos menores de 50 m2: ' + unicode(Nrec2) + u'\n')
+                            vshp_mun2 = arcpy.FeatureClassToFeatureClass_conversion("lyshprec2", carpeta_proye, "sigp_muni2")                                    
+
                             # miro su extension y calculo para pasar a grid
                             descf = arcpy.Describe("sigp_muni2")
                             xmin = (int(descf.extent.XMin / 5)) * 5
@@ -595,19 +607,19 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                                 arcpy.AddJoin_management("lyshprec","ID_UNICO","sta13","Value","KEEP_COMMON") #20221020
                                 arcpy.CalculateField_management("lyshprec","ALT_NEW","!sta13.MEAN!", "PYTHON") #20221020
 
-                                if arcpy.Exists("GFESPDE_" + codProv): #20211111
+                                if existe_GFESPDE: #20211111
                                     arcpy.AddJoin_management("lyshprec","ID_UNICO","sta11","Value","KEEP_COMMON") #20211125
                                     arcpy.CalculateField_management("lyshprec","POR_DEH","!sta11.MEAN! * 100", "PYTHON")  #20211125
                                     arcpy.AddJoin_management("lyshprec","ID_UNICO","sta7","Value","KEEP_COMMON") #20211111
                                     arcpy.CalculateField_management("lyshprec","POR_FESPDE","!sta7.MEAN! * 100", "PYTHON")  #20211111
 
-                                if arcpy.Exists("GFESPES_" + codProv): #20211111
+                                if existe_GFESPES: #20211111
                                     arcpy.AddJoin_management("lyshprec","ID_UNICO","sta12","Value","KEEP_COMMON") #20211125
                                     arcpy.CalculateField_management("lyshprec","POR_ESP","!sta12.MEAN! * 100", "PYTHON")  #20211125
                                     arcpy.AddJoin_management("lyshprec","ID_UNICO","sta8","Value","KEEP_COMMON") #20211111
                                     arcpy.CalculateField_management("lyshprec","POR_FESPES","!sta8.MEAN! * 100", "PYTHON")  #20211111
 
-                                if arcpy.Exists("GFESP_" + codProv): #20211111
+                                if existe_GFESP: #20211111
                                     arcpy.AddJoin_management("lyshprec","ID_UNICO","sta9","Value","KEEP_COMMON") #20211111
                                     arcpy.CalculateField_management("lyshprec","POR_FESP","!sta9.MEAN! * 100", "PYTHON")  #20211111
 
@@ -677,8 +689,11 @@ with io.open(ruta_log, "a", encoding="utf-8") as fictime:
                         arcpy.AddMessage("seleccion para 99: " + arcpy.GetCount_management("lyshprec2").getOutput(0))
                         arcpy.CalculateField_management("lyshprec2","SOLAPES2","99", "PYTHON")
                         arcpy.SelectLayerByAttribute_management("lyshprec2", "SWITCH_SELECTION")
-                        arcpy.AddMessage("seleccion para 0: " + arcpy.GetCount_management("lyshprec2").getOutput(0))
-                        if int(arcpy.GetCount_management("lyshprec2").getOutput(0)) > 0:
+
+                        nrec_seleccion_0 = int(arcpy.GetCount_management("lyshprec2").getOutput(0))                  
+                        arcpy.AddMessage("seleccion para 0: " + nrec_seleccion_0)
+
+                        if nrec_seleccion_0  > 0:
                             arcpy.CalculateField_management("lyshprec2","SOLAPES2","0", "PYTHON")
                             RecSol = 1
                             RecVue = RecVue + 1
