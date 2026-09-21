@@ -318,11 +318,11 @@ try:
 
                 # Si no hay errores, salir del bucle
                 if conteo == 0:
-                    arcpy.AddMessage(time.ctime() + " La capa de recintos ya es geométricamente consistente. No es necesario realizar más reparaciones.")
+                    arcpy.AddMessage(time.ctime() + " La capa de recintos ya es geometricamente consistente. No es necesario realizar mas reparaciones.")
                     break
 
                 # Hay errores: intentar repararlos
-                arcpy.AddMessage(time.ctime() + " Se detectaron errores geométricos. Reparando geometría...")
+                arcpy.AddMessage(time.ctime() + " Se detectaron errores geometricos. Reparando geometria...")
                 arcpy.management.RepairGeometry(vshp_recp)
         else:
             arcpy.AddMessage(time.ctime() + " Se ha elegido no completar procesos de reparacion sobre la capa de recintos...")
@@ -754,7 +754,6 @@ try:
                         
                         # limpio seleccion del municipio
                         arcpy.env.extent = vgcsp  #extension
-                        del vgcsp
 
                         # arcpy.SelectLayerByAttribute_management("lyshprec", "CLEAR_SELECTION", "")
                         
