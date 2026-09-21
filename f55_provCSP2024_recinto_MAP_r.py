@@ -304,18 +304,36 @@ try:
 
             arcpy.CalculateField_management(vshp_recp,"SOLAPES","0", "PYTHON")
             arcpy.CalculateField_management(vshp_recp,"SOLAPES2","0", "PYTHON")
-               
-        # reparo geometria
+        
+                # chequea y repara geometria           
         if repgeo == "true":
-            arcpy.AddMessage(time.ctime() + " Reparando geometria...")
-            fictime.write(unicode(time.ctime() + " Reparando geometria..."))
-            
-            arcpy.CheckGeometry_management(vshp_recp, os.path.join(carpeta_proye, "ErrGeoSigp_" + str(codProv)))
-            arcpy.RepairGeometry_management(vshp_recp)
+            errores_geom = os.path.join(arcpy.env.scratchGDB, "errores_temporales")
+            while True:
+                # Comprobar geometría
+                if arcpy.Exists(errores_geom):
+                    arcpy.management.Delete(errores_geom)
 
-        # meto las coordenada del geocentro # nuevo 20230601
-        arcpy.AddGeometryAttributes_management(vshp_recp, "CENTROID_INSIDE","#","#","GEOGCS['GCS_ETRS_1989',DATUM['D_ETRS_1989',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]") #20230601
+                arcpy.management.CheckGeometry(vshp_recp, errores_geom)
+                conteo = int(arcpy.management.GetCount(errores_geom)[0])
 
+                # Si no hay errores, salir del bucle
+                if conteo == 0:
+                    arcpy.AddMessage(time.ctime() + " La capa de recintos ya es geométricamente consistente. No es necesario realizar más reparaciones.")
+                    break
+
+                # Hay errores: intentar repararlos
+                arcpy.AddMessage(time.ctime() + " Se detectaron errores geométricos. Reparando geometría...")
+                arcpy.management.RepairGeometry(vshp_recp)
+        else:
+            arcpy.AddMessage(time.ctime() + " Se ha elegido no completar procesos de reparacion sobre la capa de recintos...")
+        
+        try:
+            # meto las coordenada del geocentro # nuevo 20230601
+            arcpy.management.AddGeometryAttributes(vshp_recp, "CENTROID_INSIDE","#","#","GEOGCS['GCS_ETRS_1989',DATUM['D_ETRS_1989',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]") #20230601
+                
+        except Exception as e:
+            arcpy.AddError(time.ctime() + " Revisa la capa de recintos. Se produjo un error al generar los centroides probablemente debido a errores topologicos no resueltos")
+                
         #hago la layer
         arcpy.MakeFeatureLayer_management(vshp_recp, "lyshprec")    
         arcpy.AddIndex_management("lyshprec", "ID_UNICO", "iID_UNICO", "UNIQUE","ASCENDING")
@@ -751,20 +769,20 @@ try:
                     arcpy.env.snapRaster = None
                     arcpy.ClearWorkspaceCache_management()
                     
-                    if 'vgalt' in locals(): del vgalt
-                    if 'vgpte' in locals(): del vgpte
-                    if 'vgcsp' in locals(): del vgcsp
-                    if 'vgfsue' in locals(): del vgfsue
-                    if 'vgfpte' in locals(): del vgfpte
-                    if 'vgfveg' in locals(): del vgfveg
-                    if 'vgfveges' in locals(): del vgfveges
-                    if 'vgfinc' in locals(): del vgfinc
+                    # if 'vgalt' in locals(): del vgalt
+                    # if 'vgpte' in locals(): del vgpte
+                    # if 'vgcsp' in locals(): del vgcsp
+                    # if 'vgfsue' in locals(): del vgfsue
+                    # if 'vgfpte' in locals(): del vgfpte
+                    # if 'vgfveg' in locals(): del vgfveg
+                    # if 'vgfveges' in locals(): del vgfveges
+                    # if 'vgfinc' in locals(): del vgfinc
                     
-                    if 'gtemp_deh' in locals(): del gtemp_deh
-                    if 'gtemp_fespde' in locals(): del gtemp_fespde
-                    if 'gtemp_esp' in locals(): del gtemp_esp
-                    if 'gtemp_fespes' in locals(): del gtemp_fespes
-                    if 'gtemp_fesp' in locals(): del gtemp_fesp
+                    # if 'gtemp_deh' in locals(): del gtemp_deh
+                    # if 'gtemp_fespde' in locals(): del gtemp_fespde
+                    # if 'gtemp_esp' in locals(): del gtemp_esp
+                    # if 'gtemp_fespes' in locals(): del gtemp_fespes
+                    # if 'gtemp_fesp' in locals(): del gtemp_fesp
 
                 else:
                     arcpy.AddMessage (time.ctime() + " Ya estaba Procesando " + str(rec) + " de " + str(nunmun) + " - Municipio: " + str(mun))
@@ -922,7 +940,6 @@ except arcpy.ExecuteError:
     arcpy.AddError("ERROR DE ARCPY:")
     arcpy.AddError(arcpy.GetMessages(2))
     raise
-
 
 except Exception as e:
     arcpy.AddError("ERROR NO CONTROLADO: " + (str(e)))

@@ -123,7 +123,6 @@ temporales = [
 
 try:
     
-    print("prueba de depuracion")
     # Estado de la licencia
     arcpy.AddMessage(time.ctime() + " Comprobando disponibilidad de licencia Spatial Analyst...")
     
@@ -319,23 +318,45 @@ try:
 
             arcpy.management.CalculateField(vshp_recp,"SOLAPES","0", "PYTHON3")
             arcpy.management.CalculateField(vshp_recp,"SOLAPES2","0", "PYTHON3")
-               
-        # reparo geometria
+        
+        
+        arcpy.AddMessage("Valor de repgeo: " + (repgeo))
+        arcpy.AddMessage("Tipo de repgeo: " + str(type(repgeo)))
+
+        # chequea y repara geometria           
         if repgeo == "true":
-            arcpy.AddMessage(time.ctime() + " Reparando geometria...")
-            fictime.write(str(time.ctime() + " Reparando geometria..."))
+            errores_geom = os.path.join(arcpy.env.scratchGDB, "errores_temporales")
+            while True:
+                # Comprobar geometría
+                if arcpy.Exists(errores_geom):
+                    arcpy.management.Delete(errores_geom)
+
+                arcpy.management.CheckGeometry(vshp_recp, errores_geom)
+                conteo = int(arcpy.management.GetCount(errores_geom)[0])
+
+                # Si no hay errores, salir del bucle
+                if conteo == 0:
+                    arcpy.AddMessage(time.ctime() + " La capa de recintos ya es geométricamente consistente. No es necesario realizar más reparaciones.")
+                    break
+
+                # Hay errores: intentar repararlos
+                arcpy.AddMessage(time.ctime() + " Se detectaron errores geométricos. Reparando geometría...")
+                arcpy.management.RepairGeometry(vshp_recp)
+        else:
+            arcpy.AddMessage(time.ctime() + " Se ha elegido no completar procesos de reparacion sobre la capa de recintos...")
             
-            arcpy.management.CheckGeometry(vshp_recp, os.path.join(carpeta_proye, "ErrGeoSigp_" + str(codProv)))
-            arcpy.management.RepairGeometry(vshp_recp)
-
-        # meto las coordenada del geocentro # nuevo 20230601
-        arcpy.management.AddGeometryAttributes(vshp_recp, "CENTROID_INSIDE","#","#","GEOGCS['GCS_ETRS_1989',DATUM['D_ETRS_1989',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]") #20230601
-
+        try:
+            # meto las coordenada del geocentro # nuevo 20230601
+            arcpy.management.AddGeometryAttributes(vshp_recp, "CENTROID_INSIDE","#","#","GEOGCS['GCS_ETRS_1989',DATUM['D_ETRS_1989',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]") #20230601
+        
+        except Exception as e:
+            arcpy.AddError(time.ctime() + " Revisa la capa de recintos. Se produjo un error al generar los centroides probablemente debido a errores topologicos no resueltos")
+        
         #hago la layer
-        arcpy.management.MakeFeatureLayer(vshp_recp, "lyshprec")    
+        arcpy.management.MakeFeatureLayer(vshp_recp, "lyshprec")
         arcpy.management.AddIndex("lyshprec", "ID_UNICO", "iID_UNICO", "UNIQUE","ASCENDING")
 
-        nreg1 = int(arcpy.management.GetCount("lyshprec").getOutput(0)) 
+        nreg1 = int(arcpy.management.GetCount("lyshprec").getOutput(0))
         # arcpy.AddMessage("Recintos totales de la provincia :" + str(nreg1))
 
         # saco el listado de municipios - RECFE_TXT2
@@ -476,7 +497,7 @@ try:
                             #selecciono lo que se procesa - NO SOLAPAN
                             arcpy.management.SelectLayerByAttribute("lyshprec2", "NEW_SELECTION", "\"SOLAPES2\" = 0") 
                             nreg2 = int(arcpy.management.GetCount("lyshprec2").getOutput(0)) 
-                            arcpy.AddMessage(time.ctime() + " Numero de recintos no solapan :" + str(nreg2))
+                            arcpy.AddMessage(time.ctime() + " Numero de recintos que no solapan :" + str(nreg2))
                             
                             if nreg2 > 0:
                                 # METODO 1 - paso recintos a raster y calculo estadisticas de todo el municipio a la vez
@@ -751,7 +772,6 @@ try:
                         
                         # limpio seleccion del municipio
                         arcpy.env.extent = vgcsp  #extension
-                        del vgcsp
 
                         # arcpy.management.SelectLayerByAttribute("lyshprec", "CLEAR_SELECTION", "")
                         
@@ -766,21 +786,6 @@ try:
                     arcpy.env.snapRaster = None
                     arcpy.management.ClearWorkspaceCache()
                     
-                    if 'vgalt' in locals(): del vgalt
-                    if 'vgpte' in locals(): del vgpte
-                    if 'vgcsp' in locals(): del vgcsp
-                    if 'vgfsue' in locals(): del vgfsue
-                    if 'vgfpte' in locals(): del vgfpte
-                    if 'vgfveg' in locals(): del vgfveg
-                    if 'vgfveges' in locals(): del vgfveges
-                    if 'vgfinc' in locals(): del vgfinc
-                    
-                    if 'gtemp_deh' in locals(): del gtemp_deh
-                    if 'gtemp_fespde' in locals(): del gtemp_fespde
-                    if 'gtemp_esp' in locals(): del gtemp_esp
-                    if 'gtemp_fespes' in locals(): del gtemp_fespes
-                    if 'gtemp_fesp' in locals(): del gtemp_fesp
-
                 else:
                     arcpy.AddMessage (time.ctime() + " Ya estaba Procesando " + str(rec) + " de " + str(nunmun) + " - Municipio: " + str(mun))
                 
@@ -794,6 +799,21 @@ try:
                     arcpy.management.Delete("PROYE\\sigp_muni")
                 if arcpy.Exists("PROYE\\sigp_muni2"):
                     arcpy.management.Delete("PROYE\\sigp_muni2")
+                    
+            # if 'vgalt' in locals(): del vgalt
+            # if 'vgpte' in locals(): del vgpte
+            # if 'vgcsp' in locals(): del vgcsp
+            # if 'vgfsue' in locals(): del vgfsue
+            # if 'vgfpte' in locals(): del vgfpte
+            # if 'vgfveg' in locals(): del vgfveg
+            # if 'vgfveges' in locals(): del vgfveges
+            # if 'vgfinc' in locals(): del vgfinc
+            
+            # if 'gtemp_deh' in locals(): del gtemp_deh
+            # if 'gtemp_fespde' in locals(): del gtemp_fespde
+            # if 'gtemp_esp' in locals(): del gtemp_esp
+            # if 'gtemp_fespes' in locals(): del gtemp_fespes
+            # if 'gtemp_fesp' in locals(): del gtemp_fesp
             
         fictime.write(str(time.ctime() + ' Termine el procesado municipio a municipio sin solapes a las ' + time.ctime()+ '\n'))
         # fictime.write('*****************************************\n')
