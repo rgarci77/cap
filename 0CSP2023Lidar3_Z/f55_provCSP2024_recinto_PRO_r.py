@@ -27,6 +27,7 @@
 #%% carga librerias
 
 import io
+import math
 import os
 import time
 
@@ -62,10 +63,10 @@ def borrar_temporal(ruta, intentos=5, espera=2):
 if not arcpy.GetParameterAsText(0) or "jupyter" in arcpy.GetParameterAsText(0).lower():
     print("--- EJECUTANDO MODO DESARROLLO EN VS CODE ---")
     dirPrin = r"D:\Pastos\CAP2023_Lidar3\RASTERS_CSP"
-    shp_rec = r"D:\Pastos\CAP2023_Lidar3\RASTERS_CSP\prov11\Recinto_clip.shp"
-    bd_rec = r"D:\Pastos\CAP2023_Lidar3\RASTERS_CSP\prov11\ATRIRECI.dbf"
+    shp_rec = r"D:\Pastos\CAP2023_Lidar3\RASTERS_CSP\prov13\RECINTO_reparada_clip.shp"
+    bd_rec = r"D:\Pastos\CAP2023_Lidar3\RASTERS_CSP\prov13\ATRIRECI.dbf"
     mun_ini = '1'
-    codProv = '11'
+    codProv = '13'
     repgeo = False
 
 else:
@@ -319,9 +320,6 @@ try:
             arcpy.management.CalculateField(vshp_recp,"SOLAPES","0", "PYTHON3")
             arcpy.management.CalculateField(vshp_recp,"SOLAPES2","0", "PYTHON3")
         
-        
-        arcpy.AddMessage("Valor de repgeo: " + (repgeo))
-        arcpy.AddMessage("Tipo de repgeo: " + str(type(repgeo)))
 
         # chequea y repara geometria           
         if repgeo == "true":
@@ -840,20 +838,59 @@ try:
             
             #paso a entero
             arcpy.management.SelectLayerByAttribute("lyshprec", "CLEAR_SELECTION", "")
-            arcpy.management.CalculateField("lyshprec","CSPI","!CSP!", "PYTHON3")
+        
+        
+            # Usamos el módulo decimal de Python que no sufre errores de punto flotante
+            codeblock = """def redondeo_6dec(val):
+                if val is None:
+                    return None
+                
+                # 1. Convertimos el Double ruidoso a un decimal limpio de 5 dígitos
+                # Ejemplo: 19.499999999999996 pasa a ser exactamente 19.5
+                val_limpio = round(val, 6)
+                
+                # 2. Extraemos la parte entera y decimal del número ya saneado
+                entero = int(val_limpio)
+                decimal = val_limpio - entero
+                
+                # 3. Aplicamos el redondeo bancario sobre los datos limpios
+                if decimal > 0.5:
+                    return entero + 1
+                elif decimal == 0.5:
+                    # Si el entero es IMPAR (como 19), sube a 20. Si es PAR (como 14), se queda en 14.
+                    return entero + 1 if (entero % 2 != 0) else entero
+                else:
+                    return entero
+            """
 
-            #redondeo a intervalos
-            arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 0")
-            arcpy.management.CalculateField("lyshprec","CSP_RES","0", "PYTHON3")
             
-            arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 20")
-            if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
-                    arcpy.management.CalculateField("lyshprec","CSP_RES","!CSPI! / 10", "PYTHON3")
-                    arcpy.management.CalculateField("lyshprec","CSP_RES","!CSP_RES! * 10 + 5", "PYTHON3")
-                    arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 90")
-                    if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
-                        arcpy.management.CalculateField("lyshprec","CSP_RES","100", "PYTHON3")
-            arcpy.management.SelectLayerByAttribute("lyshprec", "CLEAR_SELECTION", "")
+            arcpy.management.CalculateField("lyshprec","CSPI", 'redondeo_6dec(!CSP!)', "PYTHON3", codeblock)
+            # arcpy.management.CalculateField("lyshprec","CSPI","!CSP!", "PYTHON3")
+
+            calcula_csp_res = """def calcula(val):
+                if val < 20:
+                    return 0
+                if val >= 90:
+                    return 100
+                else:
+                    return ((val // 10)* 10 + 5)
+            
+            """
+            
+            arcpy.management.CalculateField("lyshprec","CSP_RES", "calcula(!CSPI!)", "PYTHON3", calcula_csp_res)
+            
+            #redondeo a intervalos
+            # arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 0")
+            # arcpy.management.CalculateField("lyshprec","CSP_RES","0", "PYTHON3")
+            
+            # arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 20")
+            # if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
+            #         arcpy.management.CalculateField("lyshprec","CSP_RES","!CSPI! // 10", "PYTHON3")
+            #         arcpy.management.CalculateField("lyshprec","CSP_RES","!CSP_RES! * 10 + 5", "PYTHON3")
+            #         arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 90")
+            #         if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
+            #             arcpy.management.CalculateField("lyshprec","CSP_RES","100", "PYTHON3")
+            # arcpy.management.SelectLayerByAttribute("lyshprec", "CLEAR_SELECTION", "")
             
         elif codProv in ['33', '28', '03', '12', '46']:
             arcpy.AddMessage(time.ctime() + " Redondeo de 5 en 5 desde 20 a 90- Asturias, Madrid, CValenciana ")
@@ -864,21 +901,50 @@ try:
 
             #paso a entero
             arcpy.management.SelectLayerByAttribute("lyshprec", "CLEAR_SELECTION", "")
-            arcpy.management.CalculateField("lyshprec","CSPI","!CSP!", "PYTHON3") #cambia 20230519
-
-            #redondeo a intervalos
-            arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 0") #cambia 20230519
-            arcpy.management.CalculateField("lyshprec","CSP_RES","0", "PYTHON3")
             
-            arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 20 and \"CSPI\" < 90") #cambia 20230519
-            if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
-                arcpy.management.CalculateField("lyshprec","TMP3","!CSP! + 2.5", "PYTHON3")
-                arcpy.management.CalculateField("lyshprec","TMP1","int(!TMP3! / 5)", "PYTHON3")
-                arcpy.management.CalculateField("lyshprec","CSP_RES","!TMP1! * 5", "PYTHON3")
+            
+            # Definimos la función en Python que hará el cálculo
+            codeblock = """def redondear(val):
+                if val is None:
+                    return None
+                entero = int(val)
+                decimal = val - entero
+                if decimal > 0.5:
+                    return entero + 1
+                else:
+                    return entero
+            """
+            
+            calcula_csp_res = """def calcula(val):
+                if val<20:
+                    return 0
+                if val>=90:
+                    return 100
+                else:
+                    return ((val + 2.5 // 5) * 5)
+            """
+            
+            
+            arcpy.management.CalculateField("lyshprec","CSPI", "redondear(!CSP!)", "PYTHON3", codeblock)                   
+            # arcpy.management.CalculateField("lyshprec","CSPI","!CSP!", "PYTHON3") #cambia 20230519
+
+            arcpy.management.CalculateField("lyshprec","CSP_RES", "calcula(!CSPI!)", "PYTHON3", calcula_csp_res)
+
+
+
+            # #redondeo a intervalos
+            # arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 0") #cambia 20230519
+            # arcpy.management.CalculateField("lyshprec","CSP_RES","0", "PYTHON3")
+            
+            # arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 20 and \"CSPI\" < 90") #cambia 20230519
+            # if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
+            #     arcpy.management.CalculateField("lyshprec","TMP3","!CSP! + 2.5", "PYTHON3")
+            #     arcpy.management.CalculateField("lyshprec","TMP1","int(!TMP3! / 5)", "PYTHON3")
+            #     arcpy.management.CalculateField("lyshprec","CSP_RES","!TMP1! * 5", "PYTHON3")
                                                     
-            arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 90") #cambia 20230519
-            if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
-                arcpy.management.CalculateField("lyshprec","CSP_RES","100", "PYTHON3")
+            # arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 90") #cambia 20230519
+            # if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
+            #     arcpy.management.CalculateField("lyshprec","CSP_RES","100", "PYTHON3")
             arcpy.management.SelectLayerByAttribute("lyshprec", "CLEAR_SELECTION", "")
             
         else:
@@ -908,9 +974,11 @@ try:
             else:
                 arcpy.management.SelectLayerByAttribute("lyshprec", "NEW_SELECTION", "\"CSPI\" >= 20") #cambia 20230519
             if int(arcpy.management.GetCount("lyshprec").getOutput(0)) > 0:
+                
                 arcpy.management.CalculateField("lyshprec","CSP_RES","int(!CSP! + 0.5)", "PYTHON3")
+                
+                # arcpy.management.CalculateField("lyshprec","CSP_RES","asignar_categoria(!CSP!)", "PYTHON3", code_block=codigo_rangos)
                 arcpy.management.CalculateField("lyshprec","TMP1","!CSP! * 10", "PYTHON3")
-                ## arcpy.management.CalculateField("lyshprec","TMP2","Right(!TMP1!,1)", "PYTHON3")
                 arcpy.management.CalculateField("lyshprec","TMP2","int(str(!TMP1!)[-1])", "PYTHON3")
                 arcpy.management.CalculateField("lyshprec","TMP3","!TMP1! / 10", "PYTHON3")
                 
