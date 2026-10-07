@@ -1061,7 +1061,7 @@ finally:
         
     # Borrar temporales con reintentos
     for temporal in temporales:
-        borrar_temporal(temporal, intentos=5, espera=2)
+        borrar_temporal(temporal, intentos=2, espera=2)
     
     if spatial_checkout:
         arcpy.CheckInExtension("Spatial")
