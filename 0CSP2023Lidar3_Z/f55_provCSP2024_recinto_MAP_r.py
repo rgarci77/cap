@@ -13,10 +13,15 @@
 
 import io
 import os
+import sys
 import time
 
 import arcpy
 from arcpy.sa import *
+
+reload(sys)
+
+sys.setdefaultencoding('utf-8')
 
 
 def borrar_temporal(ruta, intentos=5, espera=2):
